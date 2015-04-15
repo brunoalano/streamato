@@ -16,6 +16,53 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* Standard Library */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* GNU LibMicroHttpd Headers */
+#include <microhttpd.h>
+
+#define PAGE "<html><head><title>libmicrohttpd demo</title>"\
+             "</head><body>libmicrohttpd demo</body></html>"
+
+static int ahc_echo(void * cls,
+		    struct MHD_Connection * connection,
+		    const char * url,
+		    const char * method,
+                    const char * version,
+		    const char * upload_data,
+		    size_t * upload_data_size,
+                    void ** ptr) {
+  static int dummy;
+  const char * page = cls;
+  struct MHD_Response * response;
+  int ret;
+
+  if (0 != strcmp(method, "GET"))
+    return MHD_NO; /* unexpected method */
+  if (&dummy != *ptr)
+    {
+      /* The first time only the headers are valid,
+         do not respond in the first round... */
+      *ptr = &dummy;
+      return MHD_YES;
+    }
+  if (0 != *upload_data_size)
+    return MHD_NO; /* upload data in a GET!? */
+  *ptr = NULL; /* clear context pointer */
+  response = MHD_create_response_from_data(strlen(page),
+					   (void*) page,
+					   MHD_NO,
+					   MHD_NO);
+  ret = MHD_queue_response(connection,
+			   MHD_HTTP_OK,
+			   response);
+  MHD_destroy_response(response);
+  return ret;
+}
+
 /**
  * Main Block
  *
@@ -26,7 +73,35 @@
  * @param  argv pointer to array of args
  * @return      operating system return value
  */
-int main(int argc, char * argv[])
+int main(void)
 {
-  return 0;
+	/* Store the HTTPD Daemon */
+	struct MHD_Daemon * d;
+
+	/* Start the daemon */
+	d = MHD_start_daemon(
+			MHD_USE_THREAD_PER_CONNECTION, /* Flags */
+			5640, /* Port */
+			NULL, /* APC */
+			NULL, /* APC Params */
+			&ahc_echo, /* Handler */
+			PAGE, /* Handler Params */
+			MHD_OPTION_END);
+
+	/* Check if craeted */
+	if ( d == NULL ) return 1;
+
+	/* Debug message */
+	printf("\n%s\n", "Started the webserver on port 5640");
+
+	/* Wait for a character */
+	(void) getchar();
+
+	/* Debug message */
+	printf("Stopping the webserver\n");
+
+	/* Kill the daemon */
+	MHD_stop_daemon(d);
+
+  	return 0;
 }
